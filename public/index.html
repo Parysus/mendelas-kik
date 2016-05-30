@@ -1,0 +1,162 @@
+<!DOCTYPE>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Kółko i krzyżyk</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    $(document).ready(function(){
+        var socket = io();
+        var id, nick;
+        var nick_selected = false;
+        var your_turn = false;
+        var znaczek;
+        socket.on('yourId', function(data){ id = data.id });
+
+        $(document).on('keydown', function(e){
+            nick = $('input[name=login]').val()
+            if( nick != '' && e.keyCode == 13 && !nick_selected){
+                socket.emit('logged', { nick: nick.toString(), id: id });
+                nick_selected = true;
+                $('.loginPage').addClass('hidden');
+            }
+        });
+
+        socket.on('status', function(data){
+            switch(data.status){
+                case 'queued':
+                    $('.waiter').html('Waiting for another player...');
+                    $('#him').empty();
+                    break;
+                case 'gamefound':
+                    console.log('Player found');
+                    socket.emit('sayhi', {nick: nick, id: id});
+                    break;
+                case 'response':
+                    console.log(data.nick);
+                    gameInit(data.nick);
+                    break;
+            }
+        });
+
+        function gameInit(vs){
+            $('.wybor').removeClass('hidden');
+            $('.waiter').empty();
+            $('.gameContainer').empty();
+            $('.gamePlayers').empty();
+            for(var i = 0; i < 3; i++)
+                for(var j = 0; j < 3; j++)
+                    $('.gameContainer').append('<div id="'+i+'-'+j+'" class="gameElement"></div>');
+            $('.gamePlayers').append('<div id="you">'+ nick +'</div><div id="him">'+ vs +'</div>');
+        }
+
+        $('.wybor span').on('click', function(){
+            socket.emit('wyborDokonany', {wybor: $(this).html()});
+            znaczek = $(this).html();
+            your_turn = true;
+            $('.wybor').addClass('hidden');
+        });
+        socket.on('wyborDokonanyResponse', function(data){
+            znaczek = data.wybor;
+            console.log(znaczek);
+            $('.wybor').addClass('hidden');
+        });
+
+        $('.gameContainer').on('click', '.gameElement', function(){
+            if(your_turn){
+                socket.emit('turn', {id: $(this).attr('id'), znaczek: znaczek});
+                your_turn = false;
+            }
+        });
+
+        socket.on('turnResponse', function(data){
+            console.log(data)
+            if(data.znaczek != znaczek)
+                your_turn = true;
+            $('#'+data.id).html(data.znaczek);
+        });
+    });
+    </script>
+    <style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        font-family: Arial, sans-serif;
+    }
+
+    .loginPage, .gamePage {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        background: white;
+    }
+
+    .loginPage {
+        z-index: 20;
+    }
+
+    .loginPage .loginContainer {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .loginPage input {
+        border: none;
+        border: 1px solid black;
+        padding: 3px;
+    }
+
+    .hidden{
+        display: none;
+    }
+
+    .gamePage .gameWrapper {
+        background: lightgrey;
+        position: absolute;
+        width: 100%;
+        max-width: 500px;
+        height: 100%;
+        max-height: 500px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 10px;
+        text-align: center;
+    }
+    .gameElement {
+        width: 30%;
+        height: 30%;
+        display: inline-block;
+        border: 1px solid black;
+    }
+
+    #you{
+        font-weight: bold;
+    }
+
+    </style>
+</head>
+<body>
+    <div class="loginPage">
+        <div class="loginContainer">
+            <label>Nick: <input name="login"/></label>
+        </div>
+    </div>
+    <div class="gamePage">
+        <div class="gameWrapper">
+            <div class="wybor hidden">
+                <span>X</span>
+                <span>O</span>
+            </div>
+            <span class="waiter"></span>
+            <div class="gamePlayers"></div>
+            <div class="gameContainer"></div>
+        </div>
+    </div>
+</body>
+</html>
